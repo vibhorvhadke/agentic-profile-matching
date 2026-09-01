@@ -1,0 +1,18 @@
+==================================================
+CANDIDATE MATCH REPORT
+==================================================
+Must-have requirements: ['React', '3+ years of experience']
+Nice-to-have requirements: ['TypeScript', 'AWS knowledge']
+--------------------------------------------------
+
+Rank #1: candidate_3_amit
+Score: 9/10
+Reasoning: 6 years of experience, strong React and AWS skills, and backend experience.
+
+Rank #2: candidate_1_john
+Score: 7/10
+Reasoning: Meets 3+ years experience and has React, but lacks listed nice-to-haves.
+
+Rank #3: candidate_2_jane
+Score: 5/10
+Reasoning: Has React and TypeScript, but does not meet the 3+ years experience requirement.

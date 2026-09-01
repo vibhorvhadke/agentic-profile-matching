@@ -1,0 +1,18 @@
+==================================================
+CANDIDATE MATCH REPORT
+==================================================
+Must-have requirements: ['Node.js', 'React', '4+ years of experience']
+Nice-to-have requirements: ['AWS', 'MongoDB']
+--------------------------------------------------
+
+Rank #1: candidate_3_amit
+Score: 10/10
+Reasoning: Meets all must-haves with 6 years, Node.js, React, plus nice-to-have AWS and MongoDB.
+
+Rank #2: candidate_1_john
+Score: 5/10
+Reasoning: Has 4+ years and React but lacks Node.js, which is a must-have.
+
+Rank #3: candidate_2_jane
+Score: 3/10
+Reasoning: Has React but only 2 years of experience and lacks Node.js.

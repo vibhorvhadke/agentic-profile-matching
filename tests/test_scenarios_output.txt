@@ -1,0 +1,104 @@
+
+============================================================
+SCENARIO: Scenario 1: Simple ranking question
+============================================================
+
+Initial requirements: {'must_have': ['React', '3+ years of experience'], 'nice_to_have': ['TypeScript', 'AWS knowledge']}
+Initial shortlist:
+  {'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 9, 'reasoning': '6 years experience, strong React skills, and AWS knowledge. Meets all must-haves and one nice-to-have.'}
+  {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 7, 'reasoning': '4 years experience and React, meeting must-haves, but lacks TypeScript and AWS.'}
+  {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 5, 'reasoning': 'Has React and TypeScript but only 2 years of experience, so does not meet the 3+ years requirement.'}
+
+User: Why did Amit rank higher than John?
+[Classified intent: question]
+Agent: Amit ranked higher than John because he has 6 years of experience (meeting the 3+ requirement) and strong React skills (must-have), plus AWS knowledge (nice-to-have). John also meets the must-haves with 4 years and React, but lacks TypeScript and AWS. So Amit's more experience and extra nice-to-have gives him a higher score (9 vs 7).
+
+User: done
+[Classified intent: end]
+Agent: Understood - intent classified as: end
+
+
+============================================================
+SCENARIO: Scenario 2: Comparing two lower-ranked candidates
+============================================================
+
+Initial requirements: {'must_have': ['React', '3+ years of experience'], 'nice_to_have': ['TypeScript', 'AWS knowledge']}
+Initial shortlist:
+  {'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 9, 'reasoning': 'Meets all must-haves with 6 years of experience and React, plus strong AWS knowledge and full-stack leadership.'}
+  {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 7, 'reasoning': 'Meets React and 4 years of experience, but lacks the nice-to-have TypeScript and AWS knowledge.'}
+  {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 5, 'reasoning': 'Has React and TypeScript, but only 2 years of experience, so does not meet the 3+ years requirement.'}
+
+User: Why did John rank higher than Jane?
+[Classified intent: question]
+Agent: John ranks higher than Jane because John meets both must-have requirements: he has React and 4 years of experience. Jane has React and TypeScript but only 2 years of experience, so she does not meet the must-have 3+ years requirement. John's higher score reflects that meeting the must-haves outweighs having the nice-to-have TypeScript/AWS knowledge.
+
+User: thanks
+[Classified intent: end]
+Agent: Understood - intent classified as: end
+
+
+============================================================
+SCENARIO: Scenario 3: Iterative refinement - promote nice-to-have to must-have
+============================================================
+
+Initial requirements: {'must_have': ['React', '3+ years of experience'], 'nice_to_have': ['TypeScript', 'AWS knowledge']}
+Initial shortlist:
+  {'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 9, 'reasoning': '6 years of experience, strong React and AWS skills, and backend experience.'}
+  {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 7, 'reasoning': 'Meets 3+ years experience and has React, but lacks listed nice-to-haves.'}
+  {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 5, 'reasoning': 'Has React and TypeScript, but does not meet the 3+ years experience requirement.'}
+
+User: Make TypeScript a must-have requirement
+[Classified intent: update_criteria]
+Agent: Requirements updated - re-ranked candidates.
+New shortlist: [{'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 7, 'reasoning': 'Meets React and 3+ years experience, has AWS (nice-to-have), but lacks TypeScript.'}, {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 6.5, 'reasoning': 'Meets React and 3+ years experience, but lacks TypeScript and AWS.'}, {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 6, 'reasoning': 'Has React and TypeScript, but only 2 years experience and no AWS.'}]
+
+User: Why did the rankings change?
+[Classified intent: question]
+Agent: The rankings are based on how well each candidate meets the must-have requirements (React, 3+ years of experience, TypeScript) plus the nice-to-have (AWS knowledge). Amit is ranked 1 because he meets React and 3+ years of experience and has AWS, even though he lacks TypeScript. John is ranked 2 because he meets React and 3+ years of experience but lacks both TypeScript and AWS. Jane is ranked 3 because she has React and TypeScript but only has 2 years of experience and no AWS.
+
+User: done
+[Classified intent: end]
+Agent: Understood - intent classified as: end
+
+
+============================================================
+SCENARIO: Scenario 4: Multiple questions in one session
+============================================================
+
+Initial requirements: {'must_have': ['Node.js', 'React', '4+ years of experience'], 'nice_to_have': ['AWS', 'MongoDB']}
+Initial shortlist:
+  {'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 10, 'reasoning': '6 years full stack experience, strong React and Node.js, plus AWS and MongoDB.'}
+  {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 5, 'reasoning': '4 years experience and React, but lacks Node.js and nice-to-have skills.'}
+  {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 3, 'reasoning': 'Has React but only 2 years experience and no Node.js.'}
+
+User: Who is the top candidate and why?
+[Classified intent: question]
+Agent: The top candidate is candidate_3_amit (rank 1). They have 6 years of full-stack experience, strong React and Node.js skills, and also bring nice-to-have AWS and MongoDB experience, giving them the highest score of 10.
+
+User: Does Jane meet the must-haves?
+[Classified intent: question]
+Agent: No, Jane does not meet the must-have requirements. The must-haves are Node.js, React, and 4+ years of experience. Jane has React but only 2 years of experience and lacks Node.js, so she fails two of the three required criteria.
+
+User: done
+[Classified intent: end]
+Agent: Understood - intent classified as: end
+
+
+============================================================
+SCENARIO: Scenario 5: Adding a brand new requirement
+============================================================
+
+Initial requirements: {'must_have': ['Node.js', 'React', '4+ years of experience'], 'nice_to_have': ['AWS', 'MongoDB']}
+Initial shortlist:
+  {'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 10, 'reasoning': 'Meets all must-haves with 6+ years, React, Node.js, and adds AWS and MongoDB.'}
+  {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 6, 'reasoning': 'Meets 4+ years and React, but lacks Node.js and nice-to-have skills.'}
+  {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 4, 'reasoning': 'Has React but only 2 years of experience and lacks Node.js and nice-to-have skills.'}
+
+User: Add Docker as a nice-to-have requirement
+[Classified intent: update_criteria]
+Agent: Requirements updated - re-ranked candidates.
+New shortlist: [{'candidate_id': 'candidate_3_amit', 'rank': 1, 'score': 10, 'reasoning': 'Meets all must-haves with 6 years experience, React, and Node.js, plus nice-to-haves AWS and MongoDB.'}, {'candidate_id': 'candidate_1_john', 'rank': 2, 'score': 5, 'reasoning': 'Meets 4 years experience and React, but lacks Node.js and none of the nice-to-have skills.'}, {'candidate_id': 'candidate_2_jane', 'rank': 3, 'score': 2, 'reasoning': 'Has React but only 2 years experience and lacks Node.js.'}]
+
+User: done
+[Classified intent: end]
+Agent: Understood - intent classified as: end
