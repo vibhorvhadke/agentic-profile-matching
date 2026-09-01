@@ -1,16 +1,17 @@
 # ---------------------------------------------------------
-# Step 25:matching_agent.py
+# Step 25 :matching_agent.py
 # LangGraph-based Agentic Profile Matching Agent
 #
-# This file consolidates the full agent: state definition,
-# all workflow nodes (parse, extract, search, rank, report,
-# feedback), and the graph wiring with conditional loops.
-# It mirrors the logic built and tested interactively in the
-# Colab notebook (matching_agent.ipynb).
+# Consolidates the full agent: state definition, all workflow
+# nodes (parse, extract, search, rank, report, feedback), and
+# the graph wiring with conditional loops. Includes a resilient
+# multi-model LLM fallback and a safety check against bad/echoed
+# LLM responses in the feedback loop.
 # ---------------------------------------------------------
 
 import os
 import json
+import time
 import numpy as np
 from datetime import datetime
 from typing import TypedDict, List, Dict, Any, Annotated
@@ -28,14 +29,44 @@ BASE_DIR = "matching_agent_project"
 RESUMES_FOLDER = f"{BASE_DIR}/data/resumes"
 REPORTS_FOLDER = f"{BASE_DIR}/reports"
 
-# LLM client - reads the OpenRouter key from an environment variable.
-# The calling script (e.g. the Colab notebook, or a CLI runner) is
-# responsible for setting this before importing/using this module.
-llm = ChatOpenAI(
-    model="openrouter/auto",
-    openai_api_key=os.environ.get("OPENROUTER_API_KEY"),
-    openai_api_base="https://openrouter.ai/api/v1",
-)
+# Free model availability on OpenRouter changes frequently and can be
+# temporarily rate-limited/overloaded. We try a short list of candidates
+# in order, retrying on temporary errors, and falling through to the
+# next model on permanent unavailability (404s).
+CANDIDATE_MODELS = [
+    "openai/gpt-oss-20b:free",
+    "openai/gpt-oss-120b:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "meta-llama/llama-4-maverick:free",
+    "deepseek/deepseek-r1-distill:free",
+]
+
+def get_working_llm(max_retries_per_model=2, wait_seconds=5):
+    for model_name in CANDIDATE_MODELS:
+        for attempt in range(max_retries_per_model):
+            try:
+                candidate_llm = ChatOpenAI(
+                    model=model_name,
+                    openai_api_key=os.environ.get("OPENROUTER_API_KEY"),
+                    openai_api_base="https://openrouter.ai/api/v1",
+                )
+                candidate_llm.invoke("Say OK")
+                print(f"Using model: {model_name}")
+                return candidate_llm
+            except Exception as e:
+                err_msg = str(e)[:100]
+                if "429" in err_msg or "overloaded" in err_msg.lower():
+                    print(f"{model_name} temporarily busy (attempt {attempt+1}/{max_retries_per_model}), waiting {wait_seconds}s...")
+                    time.sleep(wait_seconds)
+                    continue
+                else:
+                    print(f"Model unavailable: {model_name} ({err_msg}...) - trying next.")
+                    break
+    raise RuntimeError("No candidate free models are currently available. Try again shortly, or check https://openrouter.ai/models?max_price=0")
+
+llm = get_working_llm()
 
 # Embedding model for RAG-style resume search (loaded once, reused
 # across every call to search_resumes).
@@ -44,9 +75,6 @@ embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # ---------------------------------------------------------
 # Agent State
-# Tracks conversation history, job requirements understanding,
-# and candidate shortlist/reasoning - the "shared notebook" every
-# node reads from and writes to.
 # ---------------------------------------------------------
 class AgentState(TypedDict):
     conversation_history: Annotated[List[Dict[str, str]], operator.add]
@@ -63,11 +91,7 @@ class AgentState(TypedDict):
 # ---------------------------------------------------------
 
 def extract_requirements(jd: str) -> Dict[str, Any]:
-    """
-    Tool: Parse a job description into must-have vs nice-to-have
-    requirements using the LLM. Returns a dict like:
-    {"must_have": [...], "nice_to_have": [...]}
-    """
+    """Tool: Parse a job description into must-have vs nice-to-have requirements."""
     prompt = f"""
 You are a recruiting assistant. Read the job description below and extract:
 - "must_have": a list of required skills/experience (short phrases)
@@ -90,10 +114,7 @@ Job Description:
 
 
 def compare_candidates(candidate_ids: List[str], all_candidates: List[Dict[str, Any]], requirements: Dict[str, Any]) -> str:
-    """
-    Tool: Head-to-head comparison of specific candidates by ID,
-    using the LLM to explain differences relative to requirements.
-    """
+    """Tool: Head-to-head comparison of specific candidates by ID."""
     selected = [c for c in all_candidates if c["candidate_id"] in candidate_ids]
     if not selected:
         return "No matching candidates found for comparison."
@@ -117,10 +138,7 @@ Give a clear, short comparison highlighting strengths and gaps for each.
 
 
 def generate_interview_questions(candidate_id: str, all_candidates: List[Dict[str, Any]], requirements: Dict[str, Any]) -> str:
-    """
-    Tool: Generate screening interview questions tailored to a
-    specific candidate's resume and the job's requirements.
-    """
+    """Tool: Generate screening interview questions tailored to a specific candidate."""
     candidate = next((c for c in all_candidates if c["candidate_id"] == candidate_id), None)
     if not candidate:
         return f"Candidate {candidate_id} not found."
@@ -156,11 +174,10 @@ def load_resumes_from_folder(folder_path: str) -> List[Dict[str, str]]:
 
 # ---------------------------------------------------------
 # Graph Nodes
-# Each node receives the current AgentState, does its work, and
-# returns a dict of fields to merge back into the shared state.
 # ---------------------------------------------------------
 
 def parse_jd(state: AgentState):
+    print("Node running: Parse JD")
     raw_jd = state.get("job_description", "")
     cleaned_jd = raw_jd.strip()
     note = {"role": "system", "content": "Job description received and parsed." if cleaned_jd else "Warning: No job description was provided."}
@@ -168,6 +185,7 @@ def parse_jd(state: AgentState):
 
 
 def extract_requirements_node(state: AgentState):
+    print("Node running: Extract Requirements")
     jd_text = state.get("job_description", "")
     parsed_requirements = extract_requirements(jd_text)
     note = {"role": "system", "content": f"Requirements extracted: {parsed_requirements}"}
@@ -175,6 +193,7 @@ def extract_requirements_node(state: AgentState):
 
 
 def search_resumes(state: AgentState):
+    print("Node running: Search Resumes")
     resumes = load_resumes_from_folder(RESUMES_FOLDER)
     if not resumes:
         note = {"role": "system", "content": "Warning: No resumes found to search."}
@@ -201,6 +220,7 @@ def search_resumes(state: AgentState):
 
 
 def rank_candidates(state: AgentState):
+    print("Node running: Rank Candidates")
     candidates = state.get("candidates", [])
     reqs = state.get("requirements", {})
     if not candidates:
@@ -241,6 +261,7 @@ No extra text outside the JSON.
 
 
 def generate_report(state: AgentState):
+    print("Node running: Generate Report")
     shortlist = state.get("shortlist", [])
     reqs = state.get("requirements", {})
     if not shortlist:
@@ -263,16 +284,18 @@ def generate_report(state: AgentState):
     with open(report_filename, "w") as f:
         f.write(report_text)
 
+    print(f"Report saved to: {report_filename}")
     note = {"role": "system", "content": f"Report generated and saved to {report_filename}."}
     return {"conversation_history": [note], "current_step": "generate_report"}
 
 
 def human_feedback(state: AgentState):
     """
-    Interprets the latest user message (question / update_criteria / end)
-    and prepares an answer or updated requirements. The graph's
-    conditional edges (see route_after_feedback) decide where to go next.
+    Interprets the latest user message (question / update_criteria / end).
+    Includes a safety check against bad/echoed LLM responses so the
+    conversation doesn't end incorrectly due to a weak free-model reply.
     """
+    print("Node running: Human Feedback Loop")
     user_messages = [m for m in state.get("conversation_history", []) if m.get("role") == "user"]
     if not user_messages:
         return {"current_step": "human_feedback"}
@@ -316,8 +339,17 @@ Rules:
         parsed = {"intent": "end", "answer": "", "updated_requirements": reqs}
 
     intent = parsed.get("intent", "end")
-    note = {"role": "assistant", "content": parsed.get("answer") or f"Understood - intent classified as: {intent}"}
+    answer = (parsed.get("answer") or "").strip()
 
+    # Safety check: if intent is "end" but the answer is empty or just
+    # echoes the user's own message back, treat it as a misclassification
+    # (a known failure mode with weaker free models) and default to
+    # "question" instead of ending the conversation incorrectly.
+    if intent == "end" and (not answer or answer.strip().lower() == latest_message.strip().lower()):
+        intent = "question"
+        answer = "Sorry, I didn't quite catch that — could you rephrase your question?"
+
+    note = {"role": "assistant", "content": answer or f"Understood - intent classified as: {intent}"}
     updates = {"conversation_history": [note], "current_step": "human_feedback", "last_intent": intent}
     if intent == "update_criteria":
         updates["requirements"] = parsed.get("updated_requirements", reqs)
